@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPU Sentinel — signed, replayable evidence for GPU SLAs</title>
+<meta name="description" content="GPU Sentinel turns kernel logs, health checks and benchmark runs into signed, hash-chained evidence, so a provider, a customer and their financiers can replay the same contract against the same events and get the same statement.">
+<meta name="theme-color" content="#0C0E12">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%230C0E12' stroke='%232FB673' stroke-width='1.5'/%3E%3Cpath d='M10 16.5l4 4 8-9' fill='none' stroke='%232FB673' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0C0E12; --panel:#14171D; --panel-2:#1B1F27; --line:#262B35;
+    --paper:#ECE9E1; --muted:#9199A6;
+    --green:#2FB673; --green-soft:rgba(47,182,115,.15);
+    --yellow:#E6B84A; --yellow-soft:rgba(230,184,74,.15);
+    --red:#DD5A43; --red-soft:rgba(221,90,67,.15);
+    --serif:'Newsreader',Georgia,serif; --sans:'IBM Plex Sans',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--paper);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  h1,h2,h3{font-family:var(--serif);font-weight:500;margin:0 0 .5em;letter-spacing:-.01em}
+  p{margin:0 0 1em}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+  .prose{max-width:640px}
+  section{padding:84px 0}
+  section h2{font-size:clamp(1.5rem,3vw,2rem);margin-bottom:.9em}
+  code,pre,.mono{font-family:var(--mono)}
+
+  header.bar{position:sticky;top:0;z-index:10;background:rgba(12,14,18,.86);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  header.bar .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:600;font-size:1rem;text-decoration:none}
+  .logo .mark{width:20px;height:20px;border:1.4px solid var(--green);border-radius:50%;display:grid;place-items:center}
+  .logo .mark svg{width:10px;height:10px}
+  nav{display:flex;gap:26px;align-items:center}
+  nav a{font-size:.9rem;text-decoration:none;color:var(--muted)}
+  nav a:hover{color:var(--paper)}
+  nav a.gh{color:var(--paper);border:1px solid var(--line);padding:7px 14px;border-radius:5px}
+  nav a.gh:hover{border-color:var(--green)}
+
+  .hero{padding:68px 0 60px}
+  .hero .wrap{display:grid;grid-template-columns:1.15fr 1fr;gap:56px;align-items:center}
+  .badges{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
+  .badge{font-size:.76rem;border:1px solid var(--line);color:var(--muted);padding:5px 12px;border-radius:20px;font-weight:500}
+  .badge.b-yellow{border-color:var(--yellow);color:var(--yellow);background:var(--yellow-soft)}
+  .badge.b-green{border-color:var(--green);color:var(--green);background:var(--green-soft)}
+  .badge.b-red{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+  h1{font-size:clamp(2.1rem,4.2vw,3rem);line-height:1.12;max-width:11.5ch}
+  .lede{color:var(--muted);font-size:1.05rem;max-width:46ch}
+  .cta-row{display:flex;gap:14px;margin-top:28px}
+  .btn{background:var(--green);color:#0A1510;text-decoration:none;padding:11px 20px;border-radius:5px;font-weight:600;font-size:.92rem}
+  .btn-ghost{text-decoration:none;color:var(--paper);border:1px solid var(--line);padding:11px 20px;border-radius:5px;font-size:.92rem}
+  .btn-ghost:hover{border-color:var(--paper)}
+
+  .exhibit{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--green);border-radius:8px;padding:22px 24px;position:relative}
+  .exhibit::before{content:"";position:absolute;inset:7px 7px auto 7px;bottom:7px;border:1px solid var(--line);border-radius:5px;pointer-events:none;opacity:.5}
+  .ex-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+  .ex-title{font-family:var(--mono);font-size:.74rem;color:var(--muted);letter-spacing:.03em}
+  .seal-stamp{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--green)}
+  .seal-stamp .ring{width:34px;height:34px;border:1.5px solid var(--green);border-radius:50%;display:grid;place-items:center}
+  .seal-stamp span{font-size:.62rem;color:var(--muted)}
+  .ex-row{display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line);font-family:var(--mono);font-size:.86rem}
+  .ex-row:first-of-type{border-top:none}
+  .ex-row .k{color:var(--muted)}
+  .ex-row .v{color:var(--paper)}
+  .ex-row.hi .v{color:var(--green)}
+  .ex-foot{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:.78rem;color:var(--muted);display:flex;gap:8px;align-items:center}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+
+  .stat-list{list-style:none;margin:0;padding:0;display:grid;gap:26px}
+  .stat-list li{border-top:1px solid var(--line);padding-top:22px;padding-left:18px;border-left:3px solid transparent}
+  .stat-list li:first-child{border-top:none;padding-top:0}
+  .stat-list li.sev-red{border-left-color:var(--red)}
+  .stat-list li.sev-yellow{border-left-color:var(--yellow)}
+  .stat-list strong{font-family:var(--serif);font-weight:500;font-size:1.18rem;display:block;margin-bottom:4px}
+  .stat-list p{color:var(--muted);max-width:60ch;margin-bottom:6px}
+  .stat-list a{font-size:.82rem;color:var(--green);text-decoration:none;border-bottom:1px solid transparent}
+  .stat-list a:hover{border-color:var(--green)}
+
+  .chain{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-bottom:0}
+  .chain li{list-style:none;position:relative;padding:0 18px 0 0}
+  .chain li:not(:last-child)::after{content:"";position:absolute;top:19px;right:-2px;width:calc(100% - 38px);height:1px;background:var(--line)}
+  .chain .n{width:38px;height:38px;border:1.4px solid var(--green);color:var(--green);border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:.9rem;margin-bottom:16px;background:var(--bg);position:relative;z-index:1}
+  .chain .n.st-up{border-color:var(--green);color:var(--green)}
+  .chain .n.st-suspect{border-color:var(--yellow);color:var(--yellow)}
+  .chain .n.st-down{border-color:var(--red);color:var(--red)}
+  .chain .n.st-recovering{border-color:var(--yellow);color:var(--yellow)}
+  .chain h3{font-size:1.05rem;margin-bottom:.35em}
+  .chain p{color:var(--muted);font-size:.92rem;max-width:30ch}
+
+  .stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+  .stat .num{font-family:var(--serif);font-size:clamp(1.7rem,4vw,2.3rem);margin-bottom:.15em}
+  .stat .lbl{color:var(--muted);font-size:.86rem;max-width:24ch}
+
+  figure{margin:28px 0 0}
+  figure img{display:block;width:100%;height:auto;border-radius:10px}
+  figcaption{margin-top:10px;font-size:.82rem;color:var(--muted)}
+
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th{text-align:left;font-weight:500;color:var(--muted);font-size:.78rem;padding:0 14px 10px 0;border-bottom:1px solid var(--line)}
+  td{padding:14px 14px 14px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  td.comp{font-family:var(--mono);color:var(--green);white-space:nowrap}
+  td.lang{color:var(--muted);white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:20px 22px;overflow-x:auto;font-size:.85rem;color:var(--paper);line-height:1.7}
+  pre .c{color:var(--muted)}
+
+  .tl{display:grid;gap:0;border-left:1px solid var(--line);padding-left:26px;margin-left:6px}
+  .tl-item{position:relative;padding-bottom:28px}
+  .tl-item:last-child{padding-bottom:0}
+  .tl-item::before{content:"";position:absolute;left:-31px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--bg);border:1.4px solid var(--green)}
+  .tl-item.next::before{border-color:var(--yellow)}
+  .tl-item h3{font-family:var(--mono);font-size:.9rem;color:var(--green);margin-bottom:.4em;font-weight:500}
+  .tl-item.next h3{color:var(--yellow)}
+  .tl-item p{color:var(--muted);font-size:.92rem;margin:0}
+
+  footer{border-top:1px solid var(--line);padding:40px 0}
+  footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+  footer p{margin:0;color:var(--muted);font-size:.86rem}
+  footer a{color:var(--muted);text-decoration:none;font-size:.86rem}
+  footer a:hover{color:var(--paper)}
+  .fnav{display:flex;gap:20px}
+
+  @media (max-width:860px){
+    .hero .wrap{grid-template-columns:1fr}
+    .chain{grid-template-columns:1fr;gap:28px}
+    .chain li:not(:last-child)::after{display:none}
+    .stats3{grid-template-columns:1fr;gap:22px}
+    nav a:not(.gh){display:none}
+    section{padding:56px 0}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="logo" href="#top">
+      <span class="mark"><svg viewBox="0 0 10 10"><path d="M1 5.3l2.6 2.6L9 2" fill="none" stroke="#2FB673" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      GPU Sentinel
+    </a>
+    <nav>
+      <a href="#how-it-works">How it works</a>
+      <a href="#example-data">Examples</a>
+      <a href="#whats-inside">What's inside</a>
+      <a href="#quickstart">Quickstart</a>
+      <a class="gh" href="https://github.com/Sievehouse/gpu-sentinel">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <div class="badges">
+          <span class="badge b-yellow">Pre-alpha · v0.4.0</span>
+          <span class="badge b-green">Apache-2.0</span>
+          <span class="badge b-red">Untested on production clusters</span>
+        </div>
+        <h1>One signed record of what a GPU cluster actually delivered.</h1>
+        <p class="lede">GPU Sentinel turns kernel logs, health checks and benchmark runs into signed, hash-chained evidence. The provider and the customer replay the same contract against the same events and get the same statement, down to the hash.</p>
+        <div class="cta-row">
+          <a class="btn" href="https://github.com/Sievehouse/gpu-sentinel">View on GitHub</a>
+          <a class="btn-ghost" href="#quickstart">Quickstart</a>
+        </div>
+      </div>
+
+      <div class="exhibit">
+        <div class="ex-top">
+          <span class="ex-title">SLA STATEMENT<br>examples/contracts/hgx-16-node.yaml</span>
+          <div class="seal-stamp">
+            <span class="ring"><svg width="14" height="14" viewBox="0 0 10 10"><path d="M1 5.3l2.6 2.6L9 2" fill="none" stroke="#2FB673" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span>sealed</span>
+          </div>
+        </div>
+        <div class="ex-row"><span class="k">period</span><span class="v">2026-10</span></div>
+        <div class="ex-row hi"><span class="k">availability</span><span class="v">99.7021%</span></div>
+        <div class="ex-row"><span class="k">tier</span><span class="v">99.5–99.9%</span></div>
+        <div class="ex-row hi"><span class="k">credit</span><span class="v">5% = $15,000</span></div>
+        <div class="ex-row"><span class="k">hash</span><span class="v">d6280aea…</span></div>
+        <div class="ex-foot"><span class="dot"></span> replayed independently — same hash, same statement</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="what-you-get">
+    <div class="wrap">
+      <h2>What you get</h2>
+      <table>
+        <thead><tr><th>Moment</th><th>What you get</th><th>Who checks it</th></tr></thead>
+        <tbody>
+          <tr><td class="comp">At handover</td><td>A signed acceptance bundle: the test plan, raw results and per-node verdicts, under one signature</td><td>The customer, before the first invoice</td></tr>
+          <tr><td class="comp">Every month</td><td>A sealed SLA statement either party can recompute from the same events and get the same hash</td><td>Customer, insurer or lender, without trusting a dashboard</td></tr>
+          <tr><td class="comp">When views differ</td><td>A corroboration report comparing both records node by node, plus contract rules for whose clock counts</td><td>Both parties, before anyone argues about credits</td></tr>
+          <tr><td class="comp">All month long</td><td>A shared ledger both parties push signed logs to, witnessed daily and co-signed monthly</td><td>Both parties, and financiers once both consent</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="why">
+    <div class="wrap prose">
+      <h2>Why this exists</h2>
+      <ul class="stat-list">
+        <li class="sev-red">
+          <strong>77 clouds tested, 19 passed.</strong>
+          <p>SemiAnalysis's ClusterMAX 3.0 ran injected faults against 77 GPU clouds in September 2026 and gave only 19 a medallion rating. The faults it found were health checks that missed failures, or took hours to return a node.</p>
+          <a href="https://newsletter.semianalysis.com/p/clustermax-30-the-industry-standard">SemiAnalysis, Sept 2026</a>
+        </li>
+        <li class="sev-yellow">
+          <strong>Contracts are standardising. Measurement isn't.</strong>
+          <p>Providers and buyers now negotiate acceptance tests, downtime definitions and credits, but each side still measures with its own scripts and dashboards, so disputes get argued from support tickets.</p>
+        </li>
+        <li class="sev-yellow">
+          <strong>Capital wants the evidence too.</strong>
+          <p>Insurers sell parametric SLA cover, and lenders are starting to require it. A parametric trigger is only as good as the measurement that feeds it.</p>
+          <a href="https://capacityglobal.com/market-intelligence/data-centre-sla-risk-parametric-insurance-financing-2026/">Capacity Global, 2026</a>
+        </li>
+        <li class="sev-red">
+          <strong>Passed burn-in isn't healthy.</strong>
+          <p>ByteDance reports that synthetic microbenchmarks miss most GPUs with silent data corruption, which is why acceptance has to be followed by continuous, comparable evidence, not a one-time check.</p>
+          <a href="https://www.usenix.org/conference/osdi26/presentation/zheng">USENIX OSDI '26</a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="how-it-works">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <ol class="chain">
+        <li><div class="n">1</div><h3>Collect</h3><p>Agents, probes and the test harness write signed entries to per-source evidence logs. Each entry carries the hash of the one before it.</p></li>
+        <li><div class="n">2</div><h3>Share</h3><p>Both parties push their logs to a ledger for the contract. It signs a checkpoint of every log each day, so history can't be rewritten later.</p></li>
+        <li><div class="n">3</div><h3>Compute</h3><p>The SLA engine replays events against the contract: exclusions, per-node caps, whose clock counts. Integer seconds only, no floats in the money path.</p></li>
+        <li><div class="n">4</div><h3>Agree</h3><p>The statement is sealed with a SHA-256 hash. Anyone with the contract and the same events gets the same hash, and each party signs it.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="states">
+    <div class="wrap">
+      <h2>Up, or not up yet</h2>
+      <p style="color:var(--muted);max-width:62ch;margin-bottom:28px">The tenant probe only opens an incident after repeated failures, and only closes it after repeated recoveries, so one slow check never becomes downtime.</p>
+      <ol class="chain">
+        <li><div class="n st-up">1</div><h3>Up</h3><p>GPUs visible, checks passing.</p></li>
+        <li><div class="n st-suspect">2</div><h3>Suspect</h3><p>One check failed. Not logged as down yet.</p></li>
+        <li><div class="n st-down">3</div><h3>Down</h3><p>Third failure in a row: a signed down event.</p></li>
+        <li><div class="n st-recovering">4</div><h3>Recovering</h3><p>Passing again, but not trusted yet.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="example-data">
+    <div class="wrap prose">
+      <h2>See it on example data</h2>
+      <p style="color:var(--muted)">Every number below comes from the repository's own example contract and events. Reproduce any of it with the commands under Quickstart.</p>
+      <figure>
+        <img src="images/sla-statement.svg" alt="Terminal output of capledger sla compute: availability 99.7021%, credit 5% = 15000.00 USD, statement hash d6280aea" loading="lazy">
+        <figcaption>capledger sla compute, run against the example October 2026 contract</figcaption>
+      </figure>
+      <figure>
+        <img src="images/sla-month.svg" alt="Availability 99.7021% falls in the 99.5 to 99.9% tier: 5% of $300,000 = $15,000, with counted and excluded downtime per node" loading="lazy">
+        <figcaption>The same month, by node: what counted, what was excluded, and why</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="corroboration">
+    <div class="wrap prose">
+      <h2>Two vantage points</h2>
+      <p style="color:var(--muted);margin-bottom:28px">The customer runs its own probe and keeps its own signed log. Lining the two records up shows exactly where they differ, node by node, instead of a month of support tickets.</p>
+      <div class="stats3">
+        <div class="stat"><div class="num" style="color:var(--green)">93.63%</div><div class="lbl">of recorded downtime, seen by both sides</div></div>
+        <div class="stat"><div class="num" style="color:var(--yellow)">8,580s</div><div class="lbl">seen by only the tenant, on the worst node</div></div>
+        <div class="stat"><div class="num" style="color:var(--red)">5</div><div class="lbl">nodes to review by hand</div></div>
+      </div>
+      <figure>
+        <img src="images/corroboration.svg" alt="93.63% of recorded downtime seen by both sides; 100 seconds only by the provider, 8,580 only by the tenant; five nodes in dispute" loading="lazy">
+        <figcaption>Provider and tenant records for the same month, node by node</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="clock-rules">
+    <div class="wrap prose">
+      <h2>Whose clock wins?</h2>
+      <p style="color:var(--muted)">The provider's agent can see a fault a minute before the customer's job does, and the job can see the GPUs come back a minute after the provider's next health check. Both records are correct. The contract settles which one counts before anyone compares them:</p>
+      <pre><code>measurement:
+  reconcile:
+    count: either      <span class="c"># an outage counts if either party recorded it</span>
+    start: provider     <span class="c"># starts at the provider's first fault record</span>
+    end: tenant          <span class="c"># ends when the tenant's jobs see the node again</span></code></pre>
+      <figure>
+        <img src="images/clock-rules.svg" alt="gpu-003: the provider recorded 04:12 to 06:40, the tenant 04:13 to 06:41. Counting only what both saw gives 8,820 seconds; from the provider's first fault to the tenant's recovery gives 8,940 seconds." loading="lazy">
+        <figcaption>Sources are matched by the keyring role that signed each event, so neither party can pass its events off as the other's</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="fault-localisation">
+    <div class="wrap prose">
+      <h2>Finding bad nodes fast</h2>
+      <p style="color:var(--muted)">When a 64-node all-reduce misses its floor, the harness finds the bad nodes by splitting the group in half and recursing, instead of testing every pair.</p>
+      <figure>
+        <img src="images/fault-localisation.svg" alt="Tests needed to find 2 bad nodes: group testing grows from 15 to 35 tests between 16 and 512 nodes; all pairs grows from 120 to 130,816" loading="lazy">
+        <figcaption>capledger-harness localize-sim --bad 2, simulated from 16 to 512 nodes</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="whats-inside">
+    <div class="wrap">
+      <h2>What's inside</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Language</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td class="comp">capledger sla</td><td class="lang">Go</td><td>Contract + events → a sealed, independently replayable SLA statement</td></tr>
+          <tr><td class="comp">capledger evidence</td><td class="lang">Go</td><td>Ed25519-signed, hash-chained logs with per-node keys and heartbeat gap detection</td></tr>
+          <tr><td class="comp">capledger ledger</td><td class="lang">Go, stdlib</td><td>Hosted ledger: verified pushes, witness checkpoints, co-signing, a consented financier feed</td></tr>
+          <tr><td class="comp">capledger agent</td><td class="lang">Go, stdlib</td><td>Kernel log → NVIDIA XID / AMD amdgpu observations, GPU count, heartbeats</td></tr>
+          <tr><td class="comp">capledger probe</td><td class="lang">Go, stdlib</td><td>The customer's own side: GPU visibility and a benchmark floor, its own signed log</td></tr>
+          <tr><td class="comp">capledger watch kubernetes</td><td class="lang">Go, stdlib</td><td>Node health (Ready, NVSentinel, taints, allocatable GPUs) → signed events</td></tr>
+          <tr><td class="comp">capledger-harness</td><td class="lang">Python</td><td>Acceptance plan, run and report; group-testing fault localisation</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="quickstart">
+    <div class="wrap prose">
+      <h2>Quickstart</h2>
+      <p style="color:var(--muted);margin-bottom:18px">Go 1.22+ and Python 3.10+. The Go code has no third-party dependencies.</p>
+      <pre><code><span class="c"># clone and build</span>
+git clone https://github.com/Sievehouse/gpu-sentinel.git && cd gpu-sentinel
+make build                              <span class="c"># bin/capledger</span>
+
+<span class="c"># acceptance harness</span>
+python3 -m venv .venv && . .venv/bin/activate
+pip install -e "harness[dev]"
+
+<span class="c"># verify and run the end-to-end demo</span>
+make test
+./scripts/demo.sh</code></pre>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="wrap prose">
+      <h2>Status</h2>
+      <div class="tl">
+        <div class="tl-item"><h3>v0.1 — Oct 2026</h3><p>SLA engine with sealed, replayable statements. Signed, hash-chained evidence logs. NVIDIA XID agent, Slurm watcher, acceptance harness.</p></div>
+        <div class="tl-item"><h3>v0.2 — Oct 2026</h3><p>Heartbeats and unmonitored time. Tenant probe and corroboration. AMD Instinct support, signed bundles, keyrings.</p></div>
+        <div class="tl-item"><h3>v0.3 — Oct 2026</h3><p>Hosted ledger with provider, customer and financier roles. Co-signed statements, witness checkpoints, reconcile rules.</p></div>
+        <div class="tl-item"><h3>v0.4 — Nov 2026</h3><p>Kubernetes and NVSentinel node watcher. Redaction. One ledger for several contracts. Windows demo and CI.</p></div>
+        <div class="tl-item next"><h3>Next</h3><p>The technical proof on rented clusters, before more features.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>GPU Sentinel · Apache License 2.0 · everything here is tested on synthetic data only, not yet validated on production clusters</p>
+    <div class="fnav">
+      <a href="https://github.com/Sievehouse/gpu-sentinel">GitHub</a>
+      <a href="https://github.com/Sievehouse/gpu-sentinel/blob/main/docs/architecture.md">Docs</a>
+      <a href="https://github.com/Sievehouse/gpu-sentinel/blob/main/CONTRIBUTING.md">Contributing</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
